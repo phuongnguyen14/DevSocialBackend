@@ -29,5 +29,9 @@
     "nodemailer": "^6.9.5",
     "nodemon": "^2.0.15",
     "react-easy-crop": "^5.0.4"
+  },
+  "engines": {
+    "node": "22.x"
   }
+  
 }
