@@ -9,6 +9,7 @@ exports.creatRoomMess = async (req, res) => {
 
     const { room_name, groupRef } = req.body;
     const group = await Group.findById(groupRef);
+    // Tạo mảng members chứa các _id
     members = group.members.map((member) => member.user);
     const newRoomMess = await new RoomMess({
       room_name: room_name,
@@ -27,13 +28,16 @@ exports.creatRoomMess = async (req, res) => {
 
 exports.getRoomMess = async (req, res) => {
   try {
+    // Lấy thông tin về các nhóm người dùng đã tham gia
     const user = await User.findById(req.user.id).select("groups_joined");
     const groupsJoined = user.groups_joined;
 
+    // Tìm các RoomMess có groupRef thuộc các nhóm người dùng đã tham gia
     const allRoomMess = await RoomMess.find({
       groupRef: { $in: groupsJoined },
     }).populate("groupRef", "group_name public cover members numMembers id");
 
+    // Trả về kết quả
     res.status(200).json({ roomMess: allRoomMess });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -71,12 +75,14 @@ exports.updateRoom = async (req, res) => {
   try {
     const { color, icon } = req.body;
 
+    // Check if the chat room exists
     const existingRoom = await RoomMess.findById(req.params.roomId);
 
     if (!existingRoom) {
       return res.status(404).json({ message: "Chat room not found." });
     }
 
+    // Update chat room information
     await RoomMess.findByIdAndUpdate(req.params.roomId, {
       $set: {
         color: color,
@@ -92,7 +98,7 @@ exports.updateRoom = async (req, res) => {
 
 exports.deleteRoomMess = async (req, res) => {
   try {
-    const roomMessId  = req.params.roomMessId; 
+    const roomMessId  = req.params.roomMessId; // Đảm bảo rằng bạn đã cung cấp roomMessId trong URL hoặc body request
     const deletedRoomMess = await RoomMess.findByIdAndRemove(roomMessId);
 
     if (!deletedRoomMess) {

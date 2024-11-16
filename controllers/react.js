@@ -262,6 +262,11 @@ exports.getReactsMess = async (req, res) => {
   try {
     const reactsArray = await React.find({ messRef: req.params.id }).populate("reactBy", "first_name last_name id picture friends requests");;
 
+    /*
+    const check1 = reacts.find(
+      (x) => x.reactBy.toString() == req.user.id
+    )?.react;
+    */
     const newReacts = reactsArray.reduce((group, react) => {
       let key = react["react"];
       group[key] = group[key] || [];

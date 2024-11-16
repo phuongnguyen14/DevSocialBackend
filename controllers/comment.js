@@ -99,6 +99,10 @@ async function getCommentCount(postId) {
   return commentCount;
 }
 
+
+
+
+
 exports.getCommentInComment = async (req, res) => {
   try {
     const comments = await Comment.find({ commentRef: req.params.id ,  st: null})

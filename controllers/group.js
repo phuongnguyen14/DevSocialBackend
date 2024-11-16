@@ -34,7 +34,6 @@ exports.sendRequest = async (req, res) => {
     const { groupId, senderId, receiverId } = req.body;
 
     const receiver = await User.findById(receiverId);
-    // Kiểm tra nếu đã tồn tại yêu cầu gửi đến nhóm từ người gửi
     const existingRequest = receiver.requests_group.find(
       (request) =>
         request.sender &&

@@ -23,9 +23,16 @@ const {
   search,
   searchFriends,
   searchMembers,
+  searchFriendsByBirthday,
   addToSearchHistory,
+  getSearchHistory,
+  removeFromSearch,
+  getFriendsPageInfos,
+  getFriendsByBirthday,
   getUser,
   getGroupsJoined,
+  getdiscoverGroups,
+  getFriendsNotInGroup,
   getSavedPosts,
   validateVerifiCode
 } = require("../controllers/user");
@@ -56,9 +63,16 @@ router.put("/deleteRequest/:id", authUser, deleteRequest);
 router.post("/search/:searchTerm", authUser, search);
 router.post("/searchFriends/:searchTerm", authUser, searchFriends);
 router.post("/searchMembers/:searchTerm", authUser, searchMembers);
+router.post("/searchFriendsByBirthday/:searchTerm", authUser, searchFriendsByBirthday);
 router.put("/addToSearchHistory", authUser, addToSearchHistory);
+router.get("/getSearchHistory", authUser, getSearchHistory);
+router.put("/removeFromSearch", authUser, removeFromSearch);
+router.get("/getFriendsPageInfos/:idUser", authUser, getFriendsPageInfos);
+router.get("/getFriendsByBirthday/:idUser", authUser, getFriendsByBirthday);
 router.get("/getUser", authUser, getUser);
 router.get("/getGroupsJoined", authUser, getGroupsJoined);
+router.get("/getdiscoverGroups", authUser, getdiscoverGroups);
+router.get("/getFriendsNotInGroup/:idgroup", authUser, getFriendsNotInGroup);
 router.get("/getSavedPosts", authUser, getSavedPosts);
 
 module.exports = router;

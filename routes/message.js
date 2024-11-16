@@ -8,6 +8,7 @@ const {
   updateSeenMess,
   updateSeenMessInGroup,
   getInfo,
+  deleteMessage,
 } = require("../controllers/message");
 
 const { authUser } = require("../middlewares/auth");
@@ -21,4 +22,6 @@ router.put("/sendMessageRoom", authUser, sendMessageRoom);
 router.get("/getMessagesRoom/:roommessId", authUser, getMessagesRoom);
 router.get("/getListRoomMess", authUser, getListRoomMess);
 router.get("/getInfo/:roommessId", authUser, getInfo);
+router.delete("/messages/:messageId", authUser, deleteMessage);
+
 module.exports = router;

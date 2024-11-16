@@ -99,7 +99,7 @@ exports.activateAccount = async (req, res) => {
   try {
     const validUser = req.user.id;
     const { token } = req.body;
-    const user = jwt.verify(token, process.env.TOKEN_SECRET);
+    const user =  jwt.verify(token, process.env.TOKEN_SECRET);
     const check = await User.findById(user.id);
 
     if (validUser !== user.id) {
@@ -167,7 +167,10 @@ exports.sendVerification = async (req, res) => {
         message: "This account is already activated.",
       });
     }
-
+    // const emailVerificationToken = generateToken(
+    //   { id: user._id.toString() },
+    //   "30m"
+    // );
     const code = generateCode(5);
     const savedCode = await new Code({
       code,
@@ -242,20 +245,21 @@ exports.validateResetCode = async (req, res) => {
 exports.validateVerifiCode = async (req, res) => {
   try {
     const { email, code, type } = req.body;
-
+    
+    // Check if the user exists
     const user = await User.findOne({ email: email });
     if (!user) {
       return res.status(404).json({ message: "User not found." });
     }
 
+    // Check if the verification code exists
     const verificationCodes = await Code.find({ user: user._id, type: type });
     if (!verificationCodes || verificationCodes.length === 0) {
       return res.status(404).json({ message: "Verification code not found." });
     }
 
-    const correctCode = verificationCodes.find(
-      (dbCode) => dbCode.code === code
-    );
+    // Check if the entered code matches any of the codes in the database
+    const correctCode = verificationCodes.find((dbCode) => dbCode.code === code);
     if (!correctCode) {
       return res.status(400).json({
         message: "Verification code is wrong.",
@@ -263,8 +267,10 @@ exports.validateVerifiCode = async (req, res) => {
       });
     }
 
+    // Update the user's verified status
     await User.findOneAndUpdate({ email: email }, { $set: { verified: true } });
 
+    // Generate and send a new token
     const token = generateToken({ id: user._id.toString() }, "7d");
     return res.status(200).send({
       id: user._id,
@@ -277,6 +283,7 @@ exports.validateVerifiCode = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 exports.changePassword = async (req, res) => {
   const { email, password } = req.body;
@@ -680,13 +687,34 @@ exports.searchFriends = async (req, res) => {
   }
 };
 
+exports.searchFriendsByBirthday = async (req, res) => {
+  try {
+    const searchTerm = req.params.searchTerm;
+    const { dataByBirthday } = req.body;
+
+    const searchResults = await User.find({
+      _id: { $in: dataByBirthday },
+      $or: [
+        { first_name: { $regex: searchTerm, $options: "i" } }, // Tìm kiếm theo tên (không phân biệt chữ hoa chữ thường)
+        { last_name: { $regex: searchTerm, $options: "i" } }, // Tìm kiếm theo họ (không phân biệt chữ hoa chữ thường)
+      ],
+    }).select(
+      "first_name last_name daysToBirthdayMessage id picture friends followers requests following"
+    );
+
+    res.json(searchResults);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.addToSearchHistory = async (req, res) => {
   try {
     const { searchId, searchType } = req.body;
     if (searchType === "user") {
       const search = {
         user: searchId,
-        type: searchType,
+        type: searchType, // Assuming you have a field to differentiate between user and group searches
         createdAt: new Date(),
       };
       const user = await User.findById(req.user.id);
@@ -714,7 +742,8 @@ exports.addToSearchHistory = async (req, res) => {
     } else {
       const search = {
         group: searchId,
-        type: searchType, 
+        type: searchType, // Assuming you have a field to differentiate between user and group searches
+        createdAt: new Date(),
       };
       const user = await User.findById(req.user.id);
       const check = user.search.find(
@@ -744,8 +773,180 @@ exports.addToSearchHistory = async (req, res) => {
   }
 };
 
+exports.getSearchHistory = async (req, res) => {
+  try {
+    const results = await User.findById(req.user.id)
+      .select("search")
+      .populate("search.user", "first_name last_name id picture")
+      .populate("search.group", "group_name id cover");
+    res.json(results.search);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+exports.removeFromSearch = async (req, res) => {
+  try {
+    const { searchId, type } = req.body;
+    if (type === "user") {
+      await User.updateOne(
+        {
+          _id: req.user.id,
+        },
+        { $pull: { search: { user: searchId } } }
+      );
+    } else {
+      await User.updateOne(
+        {
+          _id: req.user.id,
+        },
+        { $pull: { search: { group: searchId } } }
+      );
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+exports.getFriendsPageInfos = async (req, res) => {
+  try {
+    const idUser = req.params.idUser;
+    const user = await User.findById(idUser)
+      .select("friends requests requests_group ")
+      .populate("friends", "first_name last_name picture id")
+      .populate("requests", "first_name last_name picture id")
+      .populate({
+        path: "requests_group",
+        select: "senderRef groupRef",
+        populate: [
+          {
+            path: "senderRef",
+            select: "first_name last_name picture id",
+          },
+          {
+            path: "groupRef",
+            select: "group_name cover id",
+          },
+        ],
+      });
 
+    const sentRequests = await User.find({
+      requests: mongoose.Types.ObjectId(idUser),
+    }).select("first_name last_name picture id");
 
+    res.json({
+      friends: user.friends,
+      requests: user.requests,
+      sentRequests,
+      requests_group: user.requests_group,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getFriendsByBirthday = async (req, res) => {
+  try {
+    const idUser = req.params.idUser;
+    const today = new Date(); // Ngày hiện tại
+    const currentYear = today.getFullYear(); // Lấy năm hiện tại
+    const currentMonth = today.getMonth() + 1; // Lấy tháng hiện tại (lưu ý rằng tháng bắt đầu từ 0)
+    const currentDay = today.getDate(); // Lấy ngày hiện tại
+
+    const daysInAdvance = 3; // Số ngày cần tìm kiếm trước ngày tháng năm sinh
+
+    // Tìm bạn bè của người dùng
+    const user = await User.findById(idUser); // Lấy thông tin của người dùng đang đăng nhập
+    const friendIds = user.friends; // Lấy danh sách ID của bạn bè
+
+    const friends = await User.find({
+      _id: { $in: friendIds }, // Chỉ tìm trong danh sách bạn bè của người dùng hiện tại
+      bYear: { $exists: true }, // Đảm bảo rằng có thông tin về năm sinh
+      bMonth: { $exists: true }, // Đảm bảo rằng có thông tin về tháng sinh
+      bDay: { $exists: true }, // Đảm bảo rằng có thông tin về ngày sinh
+    }).select(
+      "first_name last_name gender bYear bMonth bDay daysToBirthdayMessage picture friends requests"
+    );
+
+    // Tính toán số ngày còn lại đến sinh nhật và tạo thông điệp
+    friends.forEach(async (friend) => {
+      if (friend.bMonth === currentMonth) {
+        friend.daysToBirthday = friend.bDay - currentDay;
+      } else {
+        friend.daysToBirthday = -1;
+      }
+      if (friend.daysToBirthday === 0) {
+        if (friend.gender === "male") {
+          friend.daysToBirthdayMessage = "Today is his birthday";
+        } else {
+          friend.daysToBirthdayMessage = "Today is her birthday";
+        }
+      } else if (friend.daysToBirthday === 1) {
+        if (friend.gender === "male") {
+          friend.daysToBirthdayMessage = "Tomorrow is his birthday";
+        } else {
+          friend.daysToBirthdayMessage = "Tomorrow is her birthday";
+        }
+      } else if (friend.daysToBirthday === 2) {
+        friend.daysToBirthdayMessage = "Birthday is in 2 days";
+      } else if (friend.daysToBirthday === 3) {
+        friend.daysToBirthdayMessage = "Birthday is in 3 days";
+      } else {
+        friend.daysToBirthdayMessage = `Birthday is in ${friend.daysToBirthday} days`;
+      }
+
+      await User.updateOne(
+        { _id: friend._id }, // Điều kiện tìm kiếm dựa trên ID của bạn bè
+        { $set: { daysToBirthdayMessage: friend.daysToBirthdayMessage } }
+      );
+    });
+
+    // Lọc danh sách bạn bè theo ngày tháng năm sinh
+    const upcomingBirthdays = friends.filter((friend) => {
+      return (
+        friend.daysToBirthday >= 0 && friend.daysToBirthday <= daysInAdvance
+      );
+    });
+
+    const comingBirthdays = friends.filter((friend) => {
+      return (
+        friend.daysToBirthday > 0 && friend.daysToBirthday <= daysInAdvance
+      );
+    });
+
+    // Sắp xếp bạn bè theo ngày tháng năm sinh
+    upcomingBirthdays.sort((a, b) => {
+      const dateA = new Date(currentYear, a.bMonth - 1, a.bDay);
+      const dateB = new Date(currentYear, b.bMonth - 1, b.bDay);
+      return dateA - dateB;
+    });
+
+    comingBirthdays.sort((a, b) => {
+      const dateA = new Date(currentYear, a.bMonth - 1, a.bDay);
+      const dateB = new Date(currentYear, b.bMonth - 1, b.bDay);
+      return dateA - dateB;
+    });
+
+    // Lọc danh sách bạn bè theo ngày sinh nhật hôm nay, ngày mai, ngày mốt
+    const todayBirthdays = upcomingBirthdays.filter(
+      (friend) => friend.daysToBirthday === 0
+    );
+    const tomorrowBirthdays = upcomingBirthdays.filter(
+      (friend) => friend.daysToBirthday === 1
+    );
+    const dayAfterTomorrowBirthdays = upcomingBirthdays.filter(
+      (friend) => friend.daysToBirthday === 2
+    );
+
+    res.json({
+      upcomingBirthdays,
+      todayBirthdays,
+      tomorrowBirthdays,
+      dayAfterTomorrowBirthdays,
+      comingBirthdays,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 exports.getUser = async (req, res) => {
   try {
@@ -790,8 +991,49 @@ exports.getGroupsJoined = async (req, res) => {
   }
 };
 
+exports.getdiscoverGroups = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const joinedGroups = user.groups_joined;
 
+    const discoverGroups = await Group.find({
+      _id: { $nin: joinedGroups },
+      hidden: false,
+    });
 
+    res.json(discoverGroups);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getFriendsNotInGroup = async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.idgroup);
+    const members = group.members.map((member) => member.user);
+
+    const user = await User.findById(req.user.id)
+      .select("friends ")
+      .populate("friends", "first_name last_name picture groups_joined id");
+
+    // Lọc danh sách bạn bè chưa thuộc nhóm và không phải là admin của nhóm
+
+    const friendsNotInGroup = user.friends.filter(
+      (friend) =>
+        !members
+          .map((member) => member.toString())
+          .includes(friend._id.toString())
+    );
+
+    const friendIdsNotInGroup = friendsNotInGroup.map((friend) => friend.id);
+    res.json({
+      friendsNotInGroup: friendsNotInGroup,
+      friendIdsNotInGroup: friendIdsNotInGroup,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
 exports.searchMembers = async (req, res) => {
   try {

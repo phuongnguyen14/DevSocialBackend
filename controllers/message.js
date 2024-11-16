@@ -6,6 +6,7 @@ exports.sendMessage = async (req, res) => {
   const { reseverId, message, image } = req.body;
 
   try {
+    // Check if a RoomMess already exists between the sender and receiver
     const existingRoomMess = await RoomMess.findOne({
       $or: [
         { members: [req.user.id, reseverId] },
@@ -14,6 +15,7 @@ exports.sendMessage = async (req, res) => {
       roomUser: true,
     });
 
+    // If a RoomMess doesn't exist, create a new one
     if (!existingRoomMess) {
       await new RoomMess({
         room_name: reseverId,
@@ -357,5 +359,32 @@ exports.searchListMess = async (req, res) => {
     res.json(searchResults);
   } catch (error) {
     return res.status(500).json({ message: error.message });
+  }
+};
+exports.deleteMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params; // Message ID from URL parameters
+
+    // Find the message by ID
+    const message = await Message.findById(messageId);
+
+    // Check if the message exists and if the user is the sender
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    if (message.senderId.toString() !== req.user.id) {
+      return res.status(403).json({ error: "Unauthorized to delete this message" });
+    }
+
+    // Delete the message
+    await Message.findByIdAndDelete(messageId);
+
+    res.status(200).json({ message: "Message deleted successfully" });
+  } catch (error) {
+    res.status(500).json({
+      error: "Internal Server Error",
+      details: error.message,
+    });
   }
 };
